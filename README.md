@@ -41,6 +41,13 @@ Navigate to the [Consumer](https://github.com/doktor500/pact-workshop-consumer/)
 
 ### Provider Step 1 (Verifing an existing contract)
 
+<<<<<<< HEAD
+=======
+Follow the instructions in the **Consumer's** readme file
+
+### Provider Step 1 (Verifing an existing contract)
+
+>>>>>>> Step 1
 When we previously ran (in the consumer) the `spec/payment_service_client_spec.rb` test, it passed, but it also generated a `spec/pacts/paymentserviceclient-paymentservice.json` pact file that we can use to validate our assumptions on the provider side.
 
 Pact has a rake task to verify the provider against the generated pact file. It can get the pact file from any URL (like the last successful CI build), but we are just going to use the local one.
@@ -72,3 +79,98 @@ In the `pact-workshop-provider` directory run `rake pact:verify`. You should see
 Change the consumer test in the `pact-workshop-consumer` repository, so it references payment method `status` instead of payment method `state`. Generate the pact json file again by running `rspec`, and in the `pact-workshop-provider` repository execute the rake task `rake pact:verify` until the contract test becomes green.
 
 When the test is fixed, in the `pact-workshop-consumer` directory run `git clean -df && git checkout . && git checkout consumer-step2`, also in the `pact-workshop-provider` directory run `git clean -df && git checkout . && git checkout provider-step2` and follow the instructions in the **Consumer's** readme file
+
+### Provider Step 2 (Using provider state)
+
+In the `pact-workshop-provider` directory run again `rake pact:verify` and see how the new contract test added by the consumer is failing.
+
+In order to define the necessary state in the provider side that is need it to make a test like this to pass, PACT introduces the concept of "provider states".
+
+Go to the `spec/pact_helper.rb` file and change it to look like this:
+
+```ruby
+require 'pact/provider/rspec'
+
+Pact.service_provider "PaymentService" do
+  honours_pact_with 'PaymentServiceClient' do
+    pact_uri '../pact-workshop-consumer/spec/pacts/paymentserviceclient-paymentservice.json'
+  end
+end
+
+Pact.provider_states_for "PaymentServiceClient" do
+  provider_state "a black listed payment method" do
+    set_up do
+      invalid_payment_method = "9999999999999999"
+      PaymentMethodRepository.instance.black_list(invalid_payment_method)
+    end
+  end
+end
+```
+
+A new provider state has been defined for "PaymentServiceClient", take into account that different provider states can be defined for different consumers.
+
+Run again `rake pact:verify` and see all the tests passing.
+
+When the tests are green, in the `pact-workshop-consumer` directory run `git clean -df && git checkout . && git checkout consumer-step3`, also in the `pact-workshop-provider` directory run `git clean -df && git checkout . && git checkout provider-step3` and finally checkout the [Broker](https://github.com/doktor500/pact-workshop-broker/) repository and follow the instructions in the **Broker's** readme file
+
+### Provider Step 3 (Working with a PACT broker)
+
+#### Verifying contracts with the pact-broker
+
+In the `pact-workshop-provider` directory add `gem "pact_broker-client"` this gem to the `Gemfile`, the file should look like:
+
+```ruby
+source 'https://rubygems.org'
+
+gem 'rake'
+gem 'sinatra'
+
+group :development, :test do
+  gem 'pact'
+  gem 'pact_broker-client'
+  gem 'rspec'
+  gem 'rspec_junit_formatter'
+end
+```
+
+In the `pact-workshop-provider` directory execute `bundle install`
+
+Also in the `pact-workshop-provider` directory update the `pact_helper.rb` file with the following content in order to verify pacts in the broker.
+
+```ruby
+require 'pact/provider/rspec'
+
+PUBLISH_VERIFICATION_RESULTS = ENV["PUBLISH_VERIFICATION_RESULTS"]
+PACT_BROKER_BASE_URL         = ENV["PACT_BROKER_BASE_URL"] || "http://localhost:8000"
+PACT_BROKER_TOKEN            = ENV["PACT_BROKER_TOKEN"]
+CONSUMER_VERSION_TAG         = ENV["CONSUMER_VERSION_TAG"]
+
+git_commit = `git rev-parse HEAD`.strip
+git_branch = `git rev-parse --abbrev-ref HEAD`.strip
+
+Pact.service_provider "PaymentService" do
+  app_version git_commit
+  app_version_tags [git_branch]
+  publish_verification_results PUBLISH_VERIFICATION_RESULTS
+
+  honours_pacts_from_pact_broker do
+    pact_broker_base_url PACT_BROKER_BASE_URL, {token: PACT_BROKER_TOKEN}
+    if (CONSUMER_VERSION_TAG) then
+      consumer_version_tags [CONSUMER_VERSION_TAG]
+    end
+  end
+end
+
+Pact.provider_states_for "PaymentServiceClient" do
+  provider_state "a black listed payment method" do
+    set_up do
+      invalid_payment_method = "9999999999999999"
+      PaymentMethodRepository.instance.black_list(invalid_payment_method)
+    end
+  end
+end
+```
+
+Now run `rake pact:verify`. You should see all tests passing. Navigate to your broker URL, you should see the contract verified.
+
+In the `pact-workshop-consumer` directory run `git clean -df && git checkout . && git checkout consumer-step4`, also in the `pact-workshop-provider` directory run `git clean -df && git checkout . && git checkout provider-step4` to see the branches with all of this changes
