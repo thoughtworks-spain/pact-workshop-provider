@@ -10,7 +10,7 @@ class PaymentMethodValidator
 
   def validate(payment_method)
     return :fraud if @payment_method_repository.is_black_listed?(payment_method)
-    if is_valid?(sanitize(payment_method)) then :valid else :invalid end
+    if is_valid?(sanitize(payment_method)) then :accepted else :rejected end
   end
 
   private
