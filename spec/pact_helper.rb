@@ -29,3 +29,12 @@ Pact.provider_states_for "PaymentServiceClient" do
     end
   end
 end
+
+Pact.provider_states_for "PaymentServiceClient" do
+  provider_state "a black listed payment method" do
+    set_up do
+      invalid_payment_method = "9999999999999999"
+      PaymentMethodRepository.instance.black_list(invalid_payment_method)
+    end
+  end
+end
